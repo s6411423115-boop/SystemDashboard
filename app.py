@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 
 # ---------------------------------------------------------
 # Page Configuration & Theme
@@ -13,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Enterprise Glassmorphism UI (CSS with Animation Effects)
+# Custom Enterprise Glassmorphism UI (CSS)
 st.markdown("""
 <style>
     .stApp {
@@ -283,7 +282,7 @@ with tab3:
                 hover_name="MooBan",
                 labels={"Height": "ความสูง (เมตร)", "PropOfTPMaps": "สัดส่วน TPMaps (%)"},
                 template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Turbo
+                color_discrete_sequence=px.colors.qualitative.Bold
             )
             fig_scatter.update_layout(height=420)
             st.plotly_chart(fig_scatter, use_container_width=True)
