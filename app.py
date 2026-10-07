@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import pydeck as pdk
 
 # ---------------------------------------------------------
 # Page Configuration & Theme
@@ -236,19 +237,49 @@ with tab1:
             fig_donut.update_layout(showlegend=False, height=420)
             st.plotly_chart(fig_donut, use_container_width=True)
 
-# Tab 2: Map
+# Tab 2: Premium PyDeck Map (ปรับแต่งสีและขนาดจุด)
 with tab2:
-    st.subheader("🌐 แผนที่แสดงจุดตำแหน่งเชิงพิกัดและความสูง")
+    st.subheader("🌐 แผนที่แสดงจุดตำแหน่งเชิงพิกัดและความสูง (Neon Spatial Map)")
     
     map_df = filtered_df.dropna(subset=['Latitude', 'Longitude']).copy()
     
     if not map_df.empty:
-        # สลับ Latitude กับ Longitude ให้ถูกต้อง
-        map_data = pd.DataFrame({
-            'latitude': map_df['Longitude'],
-            'longitude': map_df['Latitude']
-        })
-        st.map(map_data, zoom=6)
+        # สลับพิกัด Latitude/Longitude ให้ถูกต้อง
+        map_df['lat'] = map_df['Longitude']
+        map_df['lon'] = map_df['Latitude']
+        
+        # คำนวณพิกัดกึ่งกลาง
+        avg_lat = map_df['lat'].mean()
+        avg_lon = map_df['lon'].mean()
+
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=map_df,
+            get_position=["lon", "lat"],
+            get_color="[56, 189, 248, 160]",  # สีนีออนบลู (Cyan Blue) แบบโปร่งแสง
+            get_radius=1200,                  # ปรับขนาดจุดให้ไม่กระจุกแน่นเกินไป
+            pickable=True,
+            auto_highlight=True
+        )
+
+        view_state = pdk.ViewState(
+            latitude=avg_lat,
+            longitude=avg_lon,
+            zoom=6,
+            pitch=35
+        )
+
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                map_style="mapbox://styles/mapbox/dark-v10",
+                tooltip={
+                    "html": "<b>หมู่บ้าน:</b> {MooBan}<br/><b>ตำบล:</b> {Tambon}<br/><b>อำเภอ:</b> {Ampoe}<br/><b>ความสูง:</b> {Height} เมตร",
+                    "style": {"backgroundColor": "#1e293b", "color": "#f8fafc", "fontSize": "13px", "borderRadius": "8px", "padding": "8px"}
+                }
+            )
+        )
     else:
         st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ตามเงื่อนไขที่เลือก")
 
