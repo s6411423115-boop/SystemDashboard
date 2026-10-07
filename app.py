@@ -1,76 +1,83 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ---------------------------------------------------------
 # Page Configuration & Theme
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="HRDI Smart Spatial Analytics",
+    page_title="HRDI Smart Spatial Analytics Pro",
     page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Enterprise Glassmorphism UI (CSS)
+# Custom Enterprise Glassmorphism UI (CSS with Animation Effects)
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0e1117;
+        background: #0b0f19;
     }
     .main-header {
-        background: linear-gradient(135deg, #1e2640 0%, #0e1117 100%);
-        padding: 24px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #0b0f19 100%);
+        padding: 28px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         margin-bottom: 24px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
     .main-title {
-        color: #ffffff;
-        font-size: 2.2rem;
+        background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.4rem;
         font-weight: 800;
-        letter-spacing: -0.5px;
         margin: 0;
     }
     .main-subtitle {
         color: #94a3b8;
-        font-size: 0.95rem;
+        font-size: 1rem;
         margin-top: 6px;
     }
     .glass-card {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(30, 41, 59, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        text-align: left;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.3);
     }
     .card-label {
         color: #94a3b8;
-        font-size: 0.82rem;
+        font-size: 0.85rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
+        letter-spacing: 1px;
     }
     .card-value {
         color: #f8fafc;
-        font-size: 2rem;
+        font-size: 2.2rem;
         font-weight: 800;
-        margin: 6px 0;
+        margin: 8px 0;
     }
     .card-badge {
         display: inline-block;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 0.78rem;
         font-weight: 600;
     }
-    .badge-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-    .badge-green { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
-    .badge-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
-    .badge-orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
+    .badge-blue { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .badge-green { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+    .badge-purple { background: rgba(192, 132, 252, 0.2); color: #c084fc; }
+    .badge-orange { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -94,12 +101,12 @@ except Exception as e:
 # Sidebar - Control Panel
 # ---------------------------------------------------------
 with st.sidebar:
-    st.markdown("### 🎛️ ตัวกรองการวิเคราะห์")
+    st.markdown("## 🎛️ ตัวกรองการวิเคราะห์")
     st.caption("ระบบกรองข้อมูลเชิงพื้นที่และสถิติเป้าหมาย")
     st.divider()
 
     province_list = ["ทั้งหมด (All Provinces)"] + sorted(df["Province"].dropna().unique().tolist())
-    selected_province = st.selectbox("📍 จังหวัด", province_list)
+    selected_province = st.selectbox("📍 เลือกจังหวัด", province_list)
 
     filtered_df = df.copy()
     if selected_province != "ทั้งหมด (All Provinces)":
@@ -116,7 +123,7 @@ with st.sidebar:
         filtered_df = filtered_df[filtered_df["ForestType"] == selected_forest]
 
     min_h, max_h = int(df["Height"].min()), int(df["Height"].max())
-    selected_height = st.slider("⛰️ ความสูงพื้นที่ (เมตร รทก.)", min_h, max_h, (min_h, max_h))
+    selected_height = st.slider("⛰️ ช่วงความสูงพื้นที่ (เมตร รทก.)", min_h, max_h, (min_h, max_h))
     
     filtered_df = filtered_df[
         (filtered_df["Height"] >= selected_height[0]) & 
@@ -124,15 +131,15 @@ with st.sidebar:
     ]
 
     st.divider()
-    st.markdown(f"📊 **จำนวนที่พบ:** `{len(filtered_df):,}` / `{len(df):,}` หมู่บ้าน")
+    st.metric(label="📊 จำนวนหมู่บ้านที่พบ", value=f"{len(filtered_df):,} แห่ง", delta=f"{len(filtered_df)/len(df)*100:.1f}% ของทั้งหมด")
 
 # ---------------------------------------------------------
-# Main Banner & KPI Cards
+# Main Banner & Metric Cards
 # ---------------------------------------------------------
 st.markdown("""
 <div class="main-header">
     <h1 class="main-title">🗺️ HRDI Spatial Analytics & TPMaps Intelligence</h1>
-    <div class="main-subtitle">ระบบวิเคราะห์ข้อมูลพื้นที่สูง ประชากรเป้าหมาย และการกระจายตัวเชิงภูมิศาสตร์</div>
+    <div class="main-subtitle">ระบบวิเคราะห์ข้อมูลเชิงพื้นที่สูง ประชากรเป้าหมาย และสถิติตำแหน่งภูมิศาสตร์แบบตอบสนองทันที</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -143,7 +150,7 @@ with col1:
     <div class="glass-card">
         <div class="card-label">หมู่บ้านทั้งหมด</div>
         <div class="card-value">{len(filtered_df):,}</div>
-        <span class="card-badge badge-blue">แห่ง</span>
+        <span class="card-badge badge-blue">แห่งในระบบ</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -184,14 +191,14 @@ st.write("")
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 ภาพรวมสถิติ", 
-    "🗺️ แผนที่พิกัดเชิงพื้นที่ (Interactive Map)", 
+    "🗺️ แผนที่เชิงพื้นที่ (Interactive Map)", 
     "📈 การวิเคราะห์เชิงลึก", 
-    "📁 ข้อมูลรายหมู่บ้าน & Export"
+    "📁 ค้นหา & ส่งออกข้อมูล"
 ])
 
 # Tab 1: Overview Charts
 with tab1:
-    c_left, c_right = st.columns([1.2, 1])
+    c_left, c_right = st.columns([1.3, 1])
     
     with c_left:
         st.subheader("📌 Top 10 จังหวัดที่มีจำนวนหมู่บ้านเป้าหมายสูงสุด")
@@ -206,10 +213,10 @@ with tab1:
                 orientation='h',
                 text='Count',
                 color='Count',
-                color_continuous_scale='Blues',
+                color_continuous_scale='Electric',
                 template="plotly_dark"
             )
-            fig_prov.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, height=400)
+            fig_prov.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, height=420)
             st.plotly_chart(fig_prov, use_container_width=True)
 
     with c_right:
@@ -222,30 +229,31 @@ with tab1:
                 tp_counts,
                 names='TPMaps',
                 values='Count',
-                hole=0.5,
-                color_discrete_sequence=px.colors.qualitative.Pastel,
+                hole=0.55,
+                color_discrete_sequence=px.colors.sequential.Plasma,
                 template="plotly_dark"
             )
-            fig_donut.update_traces(textinfo='percent+label')
-            fig_donut.update_layout(showlegend=False, height=400)
+            fig_donut.update_traces(textinfo='percent+label', marker=dict(line=dict(color='#000000', width=2)))
+            fig_donut.update_layout(showlegend=False, height=420)
             st.plotly_chart(fig_donut, use_container_width=True)
 
-# Tab 2: Native Streamlit Map
+# Tab 2: Map
 with tab2:
-    st.subheader("🌐 แผนที่แสดงจุดตำแหน่งและความสูงของหมู่บ้าน")
+    st.subheader("🌐 แผนที่แสดงจุดตำแหน่งเชิงพิกัดและความสูง")
     
     map_df = filtered_df.dropna(subset=['Latitude', 'Longitude']).copy()
     
     if not map_df.empty:
+        # สลับ Latitude กับ Longitude ให้ถูกต้อง
         map_data = pd.DataFrame({
             'latitude': map_df['Longitude'],
             'longitude': map_df['Latitude']
         })
-        st.map(map_data)
+        st.map(map_data, zoom=6)
     else:
         st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ตามเงื่อนไขที่เลือก")
 
-# Tab 3: Deep Dive Correlations
+# Tab 3: Deep Dive Analytics
 with tab3:
     c_box, c_scat = st.columns([1, 1.2])
     
@@ -258,7 +266,7 @@ with tab3:
                 y="Height",
                 color="TPMaps",
                 template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Vivid
+                color_discrete_sequence=px.colors.qualitative.Plotly
             )
             fig_box.update_layout(showlegend=False, height=420)
             st.plotly_chart(fig_box, use_container_width=True)
@@ -275,21 +283,31 @@ with tab3:
                 hover_name="MooBan",
                 labels={"Height": "ความสูง (เมตร)", "PropOfTPMaps": "สัดส่วน TPMaps (%)"},
                 template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Bold
+                color_discrete_sequence=px.colors.qualitative.Turbo
             )
             fig_scatter.update_layout(height=420)
             st.plotly_chart(fig_scatter, use_container_width=True)
 
-# Tab 4: Table & Download CSV
+# Tab 4: Table, Quick Search & Download
 with tab4:
-    st.subheader("📑 รายละเอียดข้อมูลและส่งออกไฟล์ (Export)")
+    st.subheader("📑 ตารางค้นหาข้อมูลรายหมู่บ้าน")
     
+    search_query = st.text_input("🔍 ค้นหาด่วน (ชื่อหมู่บ้าน / ตำบล / อำเภอ):", "")
+    
+    table_df = filtered_df.copy()
+    if search_query:
+        table_df = table_df[
+            table_df['MooBan'].astype(str).str.contains(search_query, case=False, na=False) |
+            table_df['Tambon'].astype(str).str.contains(search_query, case=False, na=False) |
+            table_df['Ampoe'].astype(str).str.contains(search_query, case=False, na=False)
+        ]
+        
     cols_to_show = ["Province", "Ampoe", "Tambon", "MooBan", "CountOfHousehold", "CountOfPopulation", "Height", "ForestType", "TPMaps", "PropOfTPMaps"]
-    st.dataframe(filtered_df[cols_to_show], use_container_width=True, height=400)
+    st.dataframe(table_df[cols_to_show], use_container_width=True, height=400)
     
-    csv_data = filtered_df.to_csv(index=False).encode('utf-8-sig')
+    csv_data = table_df.to_csv(index=False).encode('utf-8-sig')
     st.download_button(
-        label="📥 ดาวน์โหลดข้อมูลคัดกรองนี้เป็น CSV",
+        label="📥 ดาวน์โหลดข้อมูลชุดนี้เป็น CSV",
         data=csv_data,
         file_name="HRDI_filtered_data.csv",
         mime="text/csv"
