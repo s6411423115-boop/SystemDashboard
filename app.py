@@ -230,7 +230,7 @@ with tab1:
             fig_donut.update_layout(showlegend=False, height=400)
             st.plotly_chart(fig_donut, use_container_width=True)
 
-# Tab 2: Interactive Map
+# Tab 2: Native Streamlit Map (เสถียร 100%)
 with tab2:
     st.subheader("🌐 แผนที่แสดงจุดตำแหน่งและความสูงของหมู่บ้าน")
     
@@ -238,37 +238,11 @@ with tab2:
     
     if not map_df.empty:
         # สลับคอลัมน์เนื่องจากพิกัดในไฟล์ CSV สลับ Latitude กับ Longitude กันอยู่
-        map_df['real_lat'] = map_df['Longitude']
-        map_df['real_lon'] = map_df['Latitude']
-        
-        fig_map = px.scatter_mapbox(
-            map_df,
-            lat="real_lat",
-            lon="real_lon",
-            color="Height",
-            size="CountOfPopulation",
-            hover_name="MooBan",
-            hover_data={
-                "real_lat": False,
-                "real_lon": False,
-                "Tambon": True,
-                "Ampoe": True,
-                "Province": True,
-                "Height": ":.0f m",
-                "TPMaps": True
-            },
-            color_continuous_scale="Viridis",
-            size_max=15,
-            zoom=7,
-            mapbox_style="carto-darkmatter",
-            template="plotly_dark",
-            labels={"Height": "ความสูง (เมตร)"}
-        )
-        fig_map.update_layout(
-            height=550,
-            margin={"r":0, "t":0, "l":0, "b":0}
-        )
-        st.plotly_chart(fig_map, use_container_width=True)
+        map_data = pd.DataFrame({
+            'latitude': map_df['Longitude'],
+            'longitude': map_df['Latitude']
+        })
+        st.map(map_data)
     else:
         st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ตามเงื่อนไขที่เลือก")
 
@@ -287,37 +261,4 @@ with tab3:
                 template="plotly_dark",
                 color_discrete_sequence=px.colors.qualitative.Vivid
             )
-            fig_box.update_layout(showlegend=False, height=420)
-            st.plotly_chart(fig_box, use_container_width=True)
-
-    with c_scat:
-        st.subheader("📉 ความสัมพันธ์: ความสูง vs สัดส่วน TPMaps")
-        if not filtered_df.empty:
-            fig_scatter = px.scatter(
-                filtered_df,
-                x="Height",
-                y="PropOfTPMaps",
-                size="CountOfPopulation",
-                color="TPMaps",
-                hover_name="MooBan",
-                labels={"Height": "ความสูง (เมตร)", "PropOfTPMaps": "สัดส่วน TPMaps (%)"},
-                template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Bold
-            )
-            fig_scatter.update_layout(height=420)
-            st.plotly_chart(fig_scatter, use_container_width=True)
-
-# Tab 4: Table & Download CSV
-with tab4:
-    st.subheader("📑 รายละเอียดข้อมูลและส่งออกไฟล์ (Export)")
-    
-    cols_to_show = ["Province", "Ampoe", "Tambon", "MooBan", "CountOfHousehold", "CountOfPopulation", "Height", "ForestType", "TPMaps", "PropOfTPMaps"]
-    st.dataframe(filtered_df[cols_to_show], use_container_width=True, height=400)
-    
-    csv_data = filtered_df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(
-        label="📥 ดาวน์โหลดข้อมูลคัดกรองนี้เป็น CSV",
-        data=csv_data,
-        file_name="HRDI_filtered_data.csv",
-        mime="text/csv"
-    )
+            fig_box.update_layout(showlegend)
