@@ -1,281 +1,295 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import pydeck as pdk
 
 # ---------------------------------------------------------
-# Page Configuration & CSS Styling
+# Page Configuration & Theme
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="HRDI Executive Analytics",
-    page_icon="📊",
+    page_title="HRDI Smart Spatial Analytics",
+    page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS สำหรับปรับแต่งความสวยงามและการ์ด KPI
+# Custom Enterprise Glassmorphism UI (CSS)
 st.markdown("""
 <style>
-    .main .block-container {
-        padding-top: 1.8rem;
-        padding-bottom: 2rem;
+    /* Dark Premium Background */
+    .stApp {
+        background-color: #0e1117;
     }
-    .kpi-card {
-        background-color: #1e222d;
-        border: 1px solid #2e3440;
-        border-radius: 12px;
-        padding: 18px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transition: transform 0.2s ease;
+    
+    /* Header Styling */
+    .main-header {
+        background: linear-gradient(135deg, #1e2640 0%, #0e1117 100%);
+        padding: 24px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 24px;
     }
-    .kpi-card:hover {
-        transform: translateY(-2px);
+    .main-title {
+        color: #ffffff;
+        font-size: 2.2rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        margin: 0;
     }
-    .kpi-title {
-        color: #8f9ba8;
-        font-size: 0.85rem;
+    .main-subtitle {
+        color: #94a3b8;
+        font-size: 0.95rem;
+        margin-top: 6px;
+    }
+
+    /* Glass Cards for Metrics */
+    .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        text-align: left;
+    }
+    .card-label {
+        color: #94a3b8;
+        font-size: 0.82rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 6px;
+        letter-spacing: 0.8px;
     }
-    .kpi-value {
-        color: #ffffff;
-        font-size: 1.7rem;
-        font-weight: 700;
+    .card-value {
+        color: #f8fafc;
+        font-size: 2rem;
+        font-weight: 800;
+        margin: 6px 0;
     }
-    .kpi-subtext {
-        color: #00d26a;
-        font-size: 0.8rem;
-        margin-top: 4px;
+    .card-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
     }
+    .badge-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .badge-green { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    .badge-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .badge-orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Data Loading
+# Load & Cache Data
 # ---------------------------------------------------------
 @st.cache_data
 def load_data():
     df = pd.read_csv("HRDI-TPmap.csv")
+    # คลีนข้อมูลพิกัดละติจูด/ลองจิจูด
+    df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
+    df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
     return df
 
 try:
     df = load_data()
 except Exception as e:
-    st.error(f"❌ ไม่สามารถโหลดไฟล์ข้อมูล HRDI-TPmap.csv ได้: {e}")
+    st.error(f"❌ ไม่สามารถโหลดข้อมูลได้: {e}")
     st.stop()
 
 # ---------------------------------------------------------
-# Sidebar Controls (Interactive Widgets)
+# Sidebar - Advanced Control Panel
 # ---------------------------------------------------------
 with st.sidebar:
-    st.image("https://img.icons8.com/color/96/analytics.png", width=60)
-    st.title("ตัวกรองข้อมูล")
-    st.caption("ระบบวิเคราะห์เชิงพื้นที่และสถิติประชากร")
+    st.markdown("### 🎛️ ตัวกรองการวิเคราะห์")
+    st.caption("ระบบกรองข้อมูลเชิงพื้นที่และสถิติเป้าหมาย")
     st.divider()
 
-    # Filter 1: Province Selectbox
-    provinces = ["ทั้งหมด"] + sorted(df["Province"].dropna().unique().tolist())
-    selected_province = st.selectbox("📌 เลือกจังหวัด", provinces)
+    # 1. เลือกจังหวัด
+    province_list = ["ทั้งหมด (All Provinces)"] + sorted(df["Province"].dropna().unique().tolist())
+    selected_province = st.selectbox("📍 จังหวัด", province_list)
 
     filtered_df = df.copy()
-    if selected_province != "ทั้งหมด":
+    if selected_province != "ทั้งหมด (All Provinces)":
         filtered_df = filtered_df[filtered_df["Province"] == selected_province]
 
-    # Filter 2: TPMaps Multiselect
+    # 2. เลือกสถานะ TPMaps
     tpmap_options = sorted(filtered_df["TPMaps"].dropna().unique().tolist())
-    selected_tpmap = st.multiselect(
-        "🎯 เลือกสถานะ TPMaps", 
-        tpmap_options, 
-        default=tpmap_options
-    )
-
+    selected_tpmap = st.multiselect("🎯 สถานะ TPMaps", tpmap_options, default=tpmap_options)
     if selected_tpmap:
         filtered_df = filtered_df[filtered_df["TPMaps"].isin(selected_tpmap)]
 
-    # Filter 3: Height Range Slider
-    min_h, max_h = int(df["Height"].min()), int(df["Height"].max())
-    selected_height = st.slider(
-        "⛰️ ระดับความสูงจากระดับน้ำทะเล (ม.)", 
-        min_h, max_h, (min_h, max_h)
-    )
+    # 3. เลือกประเภทป่าไม้ (ForestType)
+    forest_options = ["ทั้งหมด"] + sorted(filtered_df["ForestType"].dropna().unique().tolist())
+    selected_forest = st.selectbox("🌲 ประเภทพื้นที่ป่าไม้", forest_options)
+    if selected_forest != "ทั้งหมด":
+        filtered_df = filtered_df[filtered_df["ForestType"] == selected_forest]
 
+    # 4. Range Slider ความสูง
+    min_h, max_h = int(df["Height"].min()), int(df["Height"].max())
+    selected_height = st.slider("⛰️ ความสูงพื้นที่ (เมตร รทก.)", min_h, max_h, (min_h, max_h))
+    
     filtered_df = filtered_df[
         (filtered_df["Height"] >= selected_height[0]) & 
         (filtered_df["Height"] <= selected_height[1])
     ]
-    
+
     st.divider()
-    st.markdown(f"**แสดงข้อมูล:** `{len(filtered_df):,} / {len(df):,}` หมู่บ้าน")
+    st.markdown(f"📊 **จำนวนที่พบ:** `{len(filtered_df):,}` / `{len(df):,}` หมู่บ้าน")
 
 # ---------------------------------------------------------
-# Main Header & Metric Cards
+# Main Banner & KPI Cards
 # ---------------------------------------------------------
-st.title("📊 HRDI Executive Analytics Dashboard")
-st.markdown("ศูนย์ข้อมูลสรุปสถิติหมู่บ้าน ประชากร และสัดส่วนคนจนเป้าหมายจำแนกตามพื้นที่")
+st.markdown("""
+<div class="main-header">
+    <h1 class="main-title">🗺️ HRDI Spatial Analytics & TPMaps Intelligence</h1>
+    <div class="main-subtitle">ระบบวิเคราะห์ข้อมูลพื้นที่สูง ประชากรเป้าหมาย และการกระจายตัวเชิงภูมิศาสตร์</div>
+</div>
+""", unsafe_allow_html=True)
 
-# KPI Summary Cards (4 Columns)
-c1, c2, c3, c4 = st.columns(4)
+# 4 Executive Glass Cards
+col1, col2, col3, col4 = st.columns(4)
 
-with c1:
+with col1:
     st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-title">จำนวนหมู่บ้าน</div>
-        <div class="kpi-value">{len(filtered_df):,}</div>
-        <div class="kpi-subtext">แห่ง</div>
+    <div class="glass-card">
+        <div class="card-label">หมู่บ้านทั้งหมด</div>
+        <div class="card-value">{len(filtered_df):,}</div>
+        <span class="card-badge badge-blue">แห่ง</span>
     </div>
     """, unsafe_allow_html=True)
 
-with c2:
+with col2:
+    pop_total = filtered_df['CountOfPopulation'].sum()
     st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-title">ประชากรรวม</div>
-        <div class="kpi-value">{filtered_df['CountOfPopulation'].sum():,}</div>
-        <div class="kpi-subtext">คน</div>
+    <div class="glass-card">
+        <div class="card-label">ประชากรรวม</div>
+        <div class="card-value">{pop_total:,.0f}</div>
+        <span class="card-badge badge-green">คน</span>
     </div>
     """, unsafe_allow_html=True)
 
-with c3:
+with col3:
+    house_total = filtered_df['CountOfHousehold'].sum()
     st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-title">จำนวนครัวเรือน</div>
-        <div class="kpi-value">{filtered_df['CountOfHousehold'].sum():,}</div>
-        <div class="kpi-subtext">ครัวเรือน</div>
+    <div class="glass-card">
+        <div class="card-label">ครัวเรือนทั้งหมด</div>
+        <div class="card-value">{house_total:,.0f}</div>
+        <span class="card-badge badge-purple">ครัวเรือน</span>
     </div>
     """, unsafe_allow_html=True)
 
-with c4:
-    avg_h = filtered_df['Height'].mean() if not filtered_df.empty else 0
+with col4:
+    avg_height = filtered_df['Height'].mean() if not filtered_df.empty else 0
     st.markdown(f"""
-    <div class="kpi-card">
-        <div class="kpi-title">ความสูงพื้นที่เฉลี่ย</div>
-        <div class="kpi-value">{avg_h:.1f}</div>
-        <div class="kpi-subtext">เมตร รทก.</div>
+    <div class="glass-card">
+        <div class="card-label">ความสูงเฉลี่ย</div>
+        <div class="card-value">{avg_height:.1f}</div>
+        <span class="card-badge badge-orange">เมตร รทก.</span>
     </div>
     """, unsafe_allow_html=True)
 
 st.write("")
 
 # ---------------------------------------------------------
-# Analytics Tabs (Multiple Chart Types)
+# Tabs Section
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 สัดส่วน & โครงสร้าง", 
-    "🗺️ โครงสร้างรายพื้นที่ (Treemap)", 
-    "⛰️ การวิเคราะห์ความสูงพื้นที่", 
-    "📋 ตารางข้อมูล"
+    "📊 ภาพรวมสถิติ", 
+    "🗺️ แผนที่พิกัด 3 มิติ (3D Spatial Map)", 
+    "📈 การวิเคราะห์เชิงลึก", 
+    "📁 ข้อมูลรายหมู่บ้าน & Export"
 ])
 
-# ---------------------------------------------------------
-# Tab 1: Bar Chart & Donut Chart
-# ---------------------------------------------------------
+# Tab 1: Overview Charts
 with tab1:
-    col_left, col_right = st.columns([1.2, 1])
-
-    with col_left:
-        st.subheader("1.1 จำนวนหมู่บ้านแบ่งตามสถานะ TPMaps (Bar Chart)")
+    c_left, c_right = st.columns([1.2, 1])
+    
+    with c_left:
+        st.subheader("📌 Top 10 จังหวัดที่มีจำนวนหมู่บ้านเป้าหมายสูงสุด")
         if not filtered_df.empty:
-            tpmap_counts = filtered_df["TPMaps"].value_counts().reset_index()
-            tpmap_counts.columns = ["TPMaps", "จำนวนหมู่บ้าน"]
+            prov_counts = filtered_df['Province'].value_counts().head(10).reset_index()
+            prov_counts.columns = ['Province', 'Count']
+            
+            fig_prov = px.bar(
+                prov_counts,
+                x='Count',
+                y='Province',
+                orientation='h',
+                text='Count',
+                color='Count',
+                color_continuous_scale='Blues',
+                template="plotly_dark"
+            )
+            fig_prov.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, height=400)
+            st.plotly_chart(fig_prov, use_container_width=True)
 
-            fig_bar = px.bar(
-                tpmap_counts,
-                x="TPMaps",
-                y="จำนวนหมู่บ้าน",
-                color="TPMaps",
-                text="จำนวนหมู่บ้าน",
+    with c_right:
+        st.subheader("🍰 สัดส่วนกลุ่มเป้าหมาย TPMaps")
+        if not filtered_df.empty:
+            tp_counts = filtered_df['TPMaps'].value_counts().reset_index()
+            tp_counts.columns = ['TPMaps', 'Count']
+            
+            fig_donut = px.pie(
+                tp_counts,
+                names='TPMaps',
+                values='Count',
+                hole=0.5,
                 color_discrete_sequence=px.colors.qualitative.Pastel,
                 template="plotly_dark"
             )
-            fig_bar.update_traces(textposition='outside')
-            fig_bar.update_layout(showlegend=False, xaxis_title=None, height=420)
-            st.plotly_chart(fig_bar, use_container_width=True)
+            fig_donut.update_traces(textinfo='percent+label')
+            fig_donut.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_donut, use_container_width=True)
 
-    with col_right:
-        st.subheader("1.2 สัดส่วนเปอร์เซ็นต์ TPMaps (Donut Chart)")
-        if not filtered_df.empty:
-            fig_pie = px.pie(
-                tpmap_counts,
-                names="TPMaps",
-                values="จำนวนหมู่บ้าน",
-                hole=0.45,
-                color_discrete_sequence=px.colors.qualitative.Pastel,
-                template="plotly_dark"
-            )
-            fig_pie.update_traces(textinfo='percent+label')
-            fig_pie.update_layout(showlegend=False, height=420)
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-# ---------------------------------------------------------
-# Tab 2: Treemap
-# ---------------------------------------------------------
+# Tab 2: 3D PyDeck Map
 with tab2:
-    st.subheader("2. โครงสร้างจำนวนหมู่บ้านจำแนกตาม จังหวัด -> อำเภอ (Treemap)")
-    if not filtered_df.empty:
-        fig_tree = px.treemap(
-            filtered_df,
-            path=['Province', 'Ampoe', 'TPMaps'],
-            values='CountOfHousehold',
-            color='TPMaps',
-            color_discrete_sequence=px.colors.qualitative.Set3,
-            template="plotly_dark"
+    st.subheader("🌐 แผนที่ 3D แสดงจุดตำแหน่งและความสูงของหมู่บ้าน")
+    
+    # กรองเฉพาะแถบที่มีพิกัด Latitude & Longitude สมบูรณ์
+    map_df = filtered_df.dropna(subset=['Latitude', 'Longitude'])
+    
+    if not map_df.empty:
+        # กำหนดตำแหน่งจุดศูนย์กลางของแผนที่
+        center_lat = map_df['Latitude'].mean()
+        center_lon = map_df['Longitude'].mean()
+        
+        # PyDeck ColumnLayer (3D Columns)
+        layer = pdk.Layer(
+            "ColumnLayer",
+            data=map_df,
+            get_position=["Longitude", "Latitude"],
+            get_elevation="Height",
+            elevation_scale=5,
+            radius=400,
+            get_fill_color=["Height * 0.15", "120", "220", 200],
+            pickable=True,
+            auto_highlight=True,
         )
-        fig_tree.update_layout(height=520)
-        st.plotly_chart(fig_tree, use_container_width=True)
+        
+        view_state = pdk.ViewState(
+            latitude=center_lat,
+            longitude=center_lon,
+            zoom=8,
+            pitch=45,
+            bearing=0
+        )
+        
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={
+                "html": "<b>หมู่บ้าน:</b> {MooBan}<br/><b>ตำบล:</b> {Tambon}<br/><b>อำเภอ:</b> {Ampoe}<br/><b>จังหวัด:</b> {Province}<br/><b>ความสูง:</b> {Height} เมตร",
+                "style": {"backgroundColor": "#1e293b", "color": "white"}
+            }
+        )
+        st.pydeck_chart(r)
+    else:
+        st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ (Latitude/Longitude) ตามเงื่อนไขที่เลือก")
 
-# ---------------------------------------------------------
-# Tab 3: Scatter Plot & Box Plot
-# ---------------------------------------------------------
+# Tab 3: Deep Dive Correlations
 with tab3:
-    col_scat, col_box = st.columns([1.2, 1])
-
-    with col_scat:
-        st.subheader("3.1 สัดส่วน TPMaps vs ความสูงพื้นที่ (Scatter Plot)")
-        if not filtered_df.empty:
-            fig_scatter = px.scatter(
-                filtered_df,
-                x="Height",
-                y="PropOfTPMaps",
-                size="CountOfPopulation",
-                color="TPMaps",
-                hover_name="MooBan",
-                hover_data=["Ampoe", "Province"],
-                labels={
-                    "Height": "ระดับความสูงพื้นที่ (เมตร)", 
-                    "PropOfTPMaps": "สัดส่วนคนจนเป้าหมาย (%)"
-                },
-                template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Bold
-            )
-            fig_scatter.update_layout(height=450)
-            st.plotly_chart(fig_scatter, use_container_width=True)
-
-    with col_box:
-        st.subheader("3.2 การกระจายตัวระดับความสูงตาม TPMaps (Box Plot)")
-        if not filtered_df.empty:
-            fig_box = px.box(
-                filtered_df,
-                x="TPMaps",
-                y="Height",
-                color="TPMaps",
-                labels={"Height": "ความสูง (เมตร)"},
-                template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Set2
-            )
-            fig_box.update_layout(showlegend=False, height=450)
-            st.plotly_chart(fig_box, use_container_width=True)
-
-# ---------------------------------------------------------
-# Tab 4: Data Table
-# ---------------------------------------------------------
-with tab4:
-    st.subheader("4. รายละเอียดข้อมูลรายหมู่บ้าน")
-    st.dataframe(
-        filtered_df[[
-            "Province", "Ampoe", "Tambon", "MooBan", 
-            "CountOfHousehold", "CountOfPopulation", "Height", "TPMaps", "PropOfTPMaps"
-        ]],
-        use_container_width=True,
-        height=450
-    )
+    c_box, c_scat = st.columns([1, 1.2])
+    
+    with c_box:
+        st.subheader("📦 การกระจายตัว")
