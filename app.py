@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import pydeck as pdk
 
 # ---------------------------------------------------------
 # Page Configuration & Theme
@@ -16,12 +15,9 @@ st.set_page_config(
 # Custom Enterprise Glassmorphism UI (CSS)
 st.markdown("""
 <style>
-    /* Dark Premium Background */
     .stApp {
         background-color: #0e1117;
     }
-    
-    /* Header Styling */
     .main-header {
         background: linear-gradient(135deg, #1e2640 0%, #0e1117 100%);
         padding: 24px;
@@ -41,8 +37,6 @@ st.markdown("""
         font-size: 0.95rem;
         margin-top: 6px;
     }
-
-    /* Glass Cards for Metrics */
     .glass-card {
         background: rgba(30, 41, 59, 0.7);
         backdrop-filter: blur(12px);
@@ -86,7 +80,6 @@ st.markdown("""
 @st.cache_data
 def load_data():
     df = pd.read_csv("HRDI-TPmap.csv")
-    # คลีนข้อมูลพิกัดละติจูด/ลองจิจูด
     df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
     df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
     return df
@@ -98,14 +91,13 @@ except Exception as e:
     st.stop()
 
 # ---------------------------------------------------------
-# Sidebar - Advanced Control Panel
+# Sidebar - Control Panel
 # ---------------------------------------------------------
 with st.sidebar:
     st.markdown("### 🎛️ ตัวกรองการวิเคราะห์")
     st.caption("ระบบกรองข้อมูลเชิงพื้นที่และสถิติเป้าหมาย")
     st.divider()
 
-    # 1. เลือกจังหวัด
     province_list = ["ทั้งหมด (All Provinces)"] + sorted(df["Province"].dropna().unique().tolist())
     selected_province = st.selectbox("📍 จังหวัด", province_list)
 
@@ -113,19 +105,16 @@ with st.sidebar:
     if selected_province != "ทั้งหมด (All Provinces)":
         filtered_df = filtered_df[filtered_df["Province"] == selected_province]
 
-    # 2. เลือกสถานะ TPMaps
     tpmap_options = sorted(filtered_df["TPMaps"].dropna().unique().tolist())
     selected_tpmap = st.multiselect("🎯 สถานะ TPMaps", tpmap_options, default=tpmap_options)
     if selected_tpmap:
         filtered_df = filtered_df[filtered_df["TPMaps"].isin(selected_tpmap)]
 
-    # 3. เลือกประเภทป่าไม้ (ForestType)
     forest_options = ["ทั้งหมด"] + sorted(filtered_df["ForestType"].dropna().unique().tolist())
     selected_forest = st.selectbox("🌲 ประเภทพื้นที่ป่าไม้", forest_options)
     if selected_forest != "ทั้งหมด":
         filtered_df = filtered_df[filtered_df["ForestType"] == selected_forest]
 
-    # 4. Range Slider ความสูง
     min_h, max_h = int(df["Height"].min()), int(df["Height"].max())
     selected_height = st.slider("⛰️ ความสูงพื้นที่ (เมตร รทก.)", min_h, max_h, (min_h, max_h))
     
@@ -147,7 +136,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 4 Executive Glass Cards
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -196,7 +184,7 @@ st.write("")
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 ภาพรวมสถิติ", 
-    "🗺️ แผนที่พิกัด 3 มิติ (3D Spatial Map)", 
+    "🗺️ แผนที่พิกัดเชิงพื้นที่ (Interactive Map)", 
     "📈 การวิเคราะห์เชิงลึก", 
     "📁 ข้อมูลรายหมู่บ้าน & Export"
 ])
@@ -242,54 +230,94 @@ with tab1:
             fig_donut.update_layout(showlegend=False, height=400)
             st.plotly_chart(fig_donut, use_container_width=True)
 
-# Tab 2: 3D PyDeck Map
+# Tab 2: Interactive Map
 with tab2:
-    st.subheader("🌐 แผนที่ 3D แสดงจุดตำแหน่งและความสูงของหมู่บ้าน")
+    st.subheader("🌐 แผนที่แสดงจุดตำแหน่งและความสูงของหมู่บ้าน")
     
-    # กรองเฉพาะแถบที่มีพิกัด Latitude & Longitude สมบูรณ์
-    map_df = filtered_df.dropna(subset=['Latitude', 'Longitude'])
+    map_df = filtered_df.dropna(subset=['Latitude', 'Longitude']).copy()
     
     if not map_df.empty:
-        # กำหนดตำแหน่งจุดศูนย์กลางของแผนที่
-        center_lat = map_df['Latitude'].mean()
-        center_lon = map_df['Longitude'].mean()
+        # สลับคอลัมน์เนื่องจากพิกัดในไฟล์ CSV สลับ Latitude กับ Longitude กันอยู่
+        map_df['real_lat'] = map_df['Longitude']
+        map_df['real_lon'] = map_df['Latitude']
         
-        # PyDeck ColumnLayer (3D Columns)
-        layer = pdk.Layer(
-            "ColumnLayer",
-            data=map_df,
-            get_position=["Longitude", "Latitude"],
-            get_elevation="Height",
-            elevation_scale=5,
-            radius=400,
-            get_fill_color=["Height * 0.15", "120", "220", 200],
-            pickable=True,
-            auto_highlight=True,
+        fig_map = px.scatter_mapbox(
+            map_df,
+            lat="real_lat",
+            lon="real_lon",
+            color="Height",
+            size="CountOfPopulation",
+            hover_name="MooBan",
+            hover_data={
+                "real_lat": False,
+                "real_lon": False,
+                "Tambon": True,
+                "Ampoe": True,
+                "Province": True,
+                "Height": ":.0f m",
+                "TPMaps": True
+            },
+            color_continuous_scale="Viridis",
+            size_max=15,
+            zoom=7,
+            mapbox_style="carto-darkmatter",
+            template="plotly_dark",
+            labels={"Height": "ความสูง (เมตร)"}
         )
-        
-        view_state = pdk.ViewState(
-            latitude=center_lat,
-            longitude=center_lon,
-            zoom=8,
-            pitch=45,
-            bearing=0
+        fig_map.update_layout(
+            height=550,
+            margin={"r":0, "t":0, "l":0, "b":0}
         )
-        
-        r = pdk.Deck(
-            layers=[layer],
-            initial_view_state=view_state,
-            tooltip={
-                "html": "<b>หมู่บ้าน:</b> {MooBan}<br/><b>ตำบล:</b> {Tambon}<br/><b>อำเภอ:</b> {Ampoe}<br/><b>จังหวัด:</b> {Province}<br/><b>ความสูง:</b> {Height} เมตร",
-                "style": {"backgroundColor": "#1e293b", "color": "white"}
-            }
-        )
-        st.pydeck_chart(r)
+        st.plotly_chart(fig_map, use_container_width=True)
     else:
-        st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ (Latitude/Longitude) ตามเงื่อนไขที่เลือก")
+        st.warning("ไม่พบข้อมูลพิกัดภูมิศาสตร์ตามเงื่อนไขที่เลือก")
 
 # Tab 3: Deep Dive Correlations
 with tab3:
     c_box, c_scat = st.columns([1, 1.2])
     
     with c_box:
-        st.subheader("📦 การกระจายตัว")
+        st.subheader("📦 การกระจายตัวระดับความสูงตาม TPMaps")
+        if not filtered_df.empty:
+            fig_box = px.box(
+                filtered_df,
+                x="TPMaps",
+                y="Height",
+                color="TPMaps",
+                template="plotly_dark",
+                color_discrete_sequence=px.colors.qualitative.Vivid
+            )
+            fig_box.update_layout(showlegend=False, height=420)
+            st.plotly_chart(fig_box, use_container_width=True)
+
+    with c_scat:
+        st.subheader("📉 ความสัมพันธ์: ความสูง vs สัดส่วน TPMaps")
+        if not filtered_df.empty:
+            fig_scatter = px.scatter(
+                filtered_df,
+                x="Height",
+                y="PropOfTPMaps",
+                size="CountOfPopulation",
+                color="TPMaps",
+                hover_name="MooBan",
+                labels={"Height": "ความสูง (เมตร)", "PropOfTPMaps": "สัดส่วน TPMaps (%)"},
+                template="plotly_dark",
+                color_discrete_sequence=px.colors.qualitative.Bold
+            )
+            fig_scatter.update_layout(height=420)
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
+# Tab 4: Table & Download CSV
+with tab4:
+    st.subheader("📑 รายละเอียดข้อมูลและส่งออกไฟล์ (Export)")
+    
+    cols_to_show = ["Province", "Ampoe", "Tambon", "MooBan", "CountOfHousehold", "CountOfPopulation", "Height", "ForestType", "TPMaps", "PropOfTPMaps"]
+    st.dataframe(filtered_df[cols_to_show], use_container_width=True, height=400)
+    
+    csv_data = filtered_df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label="📥 ดาวน์โหลดข้อมูลคัดกรองนี้เป็น CSV",
+        data=csv_data,
+        file_name="HRDI_filtered_data.csv",
+        mime="text/csv"
+    )
